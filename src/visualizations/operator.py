@@ -4,6 +4,8 @@ import umap
 import numpy as np
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE, LocallyLinearEmbedding
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, f1_score, silhouette_score
 from typing import Optional, Tuple
 
 
@@ -56,21 +58,24 @@ class S21MnistOperations:
         self.images = self._load_mnist_images(self.images_path)
         self.labels = self._load_mnist_labels(self.labels_path)
 
-        return self.images, self.labels
+        return self.images, self.labels 
 
 
     # PCA
     def transform_pca(self) -> np.ndarray:
         pca = PCA(n_components=2, random_state=42)
+        self.X_pca_2d = pca.fit_transform(self._get_images())
 
-        return pca.fit_transform(self._get_images())
+        return self.X_pca_2d
     
 
     # SVD    
     def transform_svd(self) -> np.ndarray:
         svd = TruncatedSVD(n_components=2, random_state=42)
+        self.X_svd_2d = svd.fit_transform(self._get_images())
 
-        return svd.fit_transform(self._get_images())
+        return self.X_svd_2d
+
 
     # randomized-SVD
     def transform_random_svd(self) -> np.ndarray:
@@ -79,8 +84,9 @@ class S21MnistOperations:
             n_iter=5,
             random_state=42
         )
-
-        return r_svd.fit_transform(self._get_images())
+        self.X_rand_svd_2d = r_svd.fit_transform(self._get_images())
+        
+        return self.X_rand_svd_2d
 
 
     # TSNE
@@ -93,8 +99,9 @@ class S21MnistOperations:
             init='random',
             random_state=42
         )
-
-        return tsne.fit_transform(self.X_small)
+        self.X_tsne_2d = tsne.fit_transform(self.X_small)
+        
+        return self.X_tsne_2d
 
     
     # UMAP
@@ -102,8 +109,9 @@ class S21MnistOperations:
         reducer = umap.UMAP(
             n_components=2
         )
-
-        return reducer.fit_transform(self._get_images())
+        self.X_umap_2d = reducer.fit_transform(self._get_images())
+        
+        return self.X_umap_2d
 
     # LLE
     def transform_lle(self) -> np.ndarray:
@@ -113,5 +121,48 @@ class S21MnistOperations:
             method='standard',
             random_state=42
         )
+        self.X_lle_2d = lle.fit_transform(self.X_small)
 
-        return lle.fit_transform(self.X_small)
+        return self.X_lle_2d
+
+    
+    # evaluates how well different 2D embeddings separate digit classes
+    def evaluate_2d(self, n_samples: int = 5000) -> None:
+        images = self._get_images()
+        labels = self._get_labels()
+
+        X_small = images[:n_samples]
+        y_small = labels[:n_samples]
+
+        # compute 2D embeddings, keeping a consistent subset size
+        embeddings = {
+            "pca": self.transform_pca()[:n_samples],
+            "svd": self.transform_svd()[:n_samples],
+            "rand_svd": self.transform_random_svd()[:n_samples],
+            "tsne": self.transform_tsne()[:n_samples],   
+            "umap": self.transform_umap()[:n_samples],
+            "lle": self.transform_lle()[:n_samples],   
+        }
+
+        metrics: dict[str, dict[str, float]] = {}
+
+        for name, X_emb in embeddings.items():
+            knn = KNeighborsClassifier(n_neighbors=5)
+            knn.fit(X_emb, y_small)
+            y_pred = knn.predict(X_emb)
+
+            acc = accuracy_score(y_small, y_pred)
+            f1 = f1_score(y_small, y_pred, average="macro")
+            sil = silhouette_score(X_emb, y_small)
+
+            metrics[name] = {
+                "accuracy": acc,
+                "f1_macro": f1,
+                "silhouette": sil,
+            }
+
+        for name, vals in metrics.items():
+            print(f"{name.upper()}:")
+            for metric_name, value in vals.items():
+                print(f"  {metric_name}: {value:.4f}")
+            print()
