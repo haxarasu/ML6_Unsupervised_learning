@@ -1,12 +1,15 @@
 import gzip
 import struct
 import umap
+import joblib
 import numpy as np
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE, LocallyLinearEmbedding
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, f1_score, silhouette_score
 from typing import Optional, Tuple
+import pickle
+from pathlib import Path
 
 
 class S21MnistOperations:
@@ -15,6 +18,7 @@ class S21MnistOperations:
         self.labels_path: str = labels_path
         self.images: Optional[np.ndarray] = None
         self.labels: Optional[np.ndarray] = None
+        self.X_small: Optional[np.ndarray] = None
 
 
     # loads MNIST images from .gz and returns a matrix
@@ -44,6 +48,12 @@ class S21MnistOperations:
         return self.images
 
 
+    # gets smaller amount of images for use of resource-demanding algorithms
+    def _get_x_small(self, n_samples: int = 5000) -> np.ndarray:
+        if self.X_small is None:
+            self.X_small = self._get_images()[:n_samples]
+        return self.X_small
+
 
     # returns loaded labels, loading them from disk if necessary
     def _get_labels(self) -> np.ndarray:
@@ -65,9 +75,21 @@ class S21MnistOperations:
     def transform_pca(self) -> np.ndarray:
         pca = PCA(n_components=2, random_state=42)
         self.X_pca_2d = pca.fit_transform(self._get_images())
+        # keep the trained model so it can be saved later
+        self.pca_model = pca
 
         return self.X_pca_2d
-    
+
+
+    # saves trained pca model for task from submission
+    def save_trained_pca(self, filename: str = "pca_model.pkl") -> None:
+        if self.pca_model is None:
+            raise RuntimeError(
+                "PCA model is not trained yet. Call `transform_pca()` before saving."
+            )
+
+        joblib.dump(self.pca_model, filename)
+
 
     # SVD    
     def transform_svd(self) -> np.ndarray:
@@ -91,7 +113,7 @@ class S21MnistOperations:
 
     # TSNE
     def transform_tsne(self) -> np.ndarray:
-        self.X_small = self._get_images()[:5000]
+        X_small = self._get_x_small()
         tsne = TSNE(
             n_components=2,
             perplexity=30,
@@ -99,7 +121,7 @@ class S21MnistOperations:
             init='random',
             random_state=42
         )
-        self.X_tsne_2d = tsne.fit_transform(self.X_small)
+        self.X_tsne_2d = tsne.fit_transform(X_small)
         
         return self.X_tsne_2d
 
@@ -115,13 +137,15 @@ class S21MnistOperations:
 
     # LLE
     def transform_lle(self) -> np.ndarray:
+        X_small = self._get_x_small()
+
         lle = LocallyLinearEmbedding(
             n_neighbors=10,
             n_components=2,
-            method='standard',
-            random_state=42
+            method="standard",
+            random_state=42,
         )
-        self.X_lle_2d = lle.fit_transform(self.X_small)
+        self.X_lle_2d = lle.fit_transform(X_small)
 
         return self.X_lle_2d
 
