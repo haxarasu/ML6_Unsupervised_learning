@@ -1,0 +1,11 @@
+numpy
+scipy
+scikit-learn
+pandas
+umap-learn
+matplotlib
+Pillow
+opencv-python
+joblib
+tqdm
+jupyter
