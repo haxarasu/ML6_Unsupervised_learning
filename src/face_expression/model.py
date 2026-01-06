@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Optional
-import joblib
 import numpy as np
 from sklearn.decomposition import PCA
 
@@ -40,13 +39,3 @@ class FaceExpressionPCA:
         result = self.model.inverse_transform(Z)
 
         return result
-
-
-    # persist PCA model to disk
-    def save(self, path: str) -> None:
-        joblib.dump(self.model, path)
-
-
-    # load PCA model from disk
-    def load(self, path: str) -> None:
-        self._model = joblib.load(path)

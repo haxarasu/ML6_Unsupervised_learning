@@ -64,15 +64,6 @@ class EmotionTranslator:
         return x_new
 
 
-    # return the latent direction from source to target emotion
-    def latent_direction(self, source_label: Union[int, str], target_label: Union[int, str]) -> np.ndarray:
-        src = self._label_index(source_label)
-        tgt = self._label_index(target_label)
-        result = self.latent_means[tgt] - self.latent_means[src]
-
-        return result
-
-
     # convert label name or index to integer index
     def _label_index(self, label: Union[int, str]) -> int:
         if isinstance(label, int):

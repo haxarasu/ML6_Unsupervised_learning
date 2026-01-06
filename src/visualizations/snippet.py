@@ -8,9 +8,11 @@ def load_mnist_images_gz(filename):
         magic = int.from_bytes(f.read(4), 'big')
         if magic != 2051: # MNIST format
             raise ValueError(f"Invalid MNIST magic {magic} in: {filename}")
+            
         n_images = int.from_bytes(f.read(4), 'big')
         n_rows = int.from_bytes(f.read(4), 'big')
         n_cols = int.from_bytes(f.read(4), 'big')
+
         buf = f.read(n_images * n_rows * n_cols)
         data = np.frombuffer(buf, dtype=np.uint8)
         data = data.reshape(n_images, n_rows * n_cols).astype(np.float32) / 255.0

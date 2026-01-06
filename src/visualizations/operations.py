@@ -16,8 +16,8 @@ class S21MnistOperations:
         self.labels_path: str = labels_path
         self.images: Optional[np.ndarray] = None
         self.labels: Optional[np.ndarray] = None
-        self.X_small: Optional[np.ndarray] = None
         self.pca_model = None
+        self.X_small = None
 
 
     # loads MNIST images from .gz and returns a matrix
@@ -39,7 +39,7 @@ class S21MnistOperations:
         return labels
 
 
-    # returns loaded images, loading them from disk if necessary
+    # returns loaded images
     def _get_images(self) -> np.ndarray:
         if self.images is None:
             self.images = self._load_mnist_images(self.images_path)
@@ -50,11 +50,16 @@ class S21MnistOperations:
     # gets smaller amount of images for use of resource-demanding algorithms
     def _get_x_small(self, n_samples: int = 5000) -> np.ndarray:
         if self.X_small is None:
-            self.X_small = self._get_images()[:n_samples]
+            if self.images is None:
+                raise RuntimeError(
+                    "Images are not loaded yet. Call `load_dataset()` before using X_small."
+                )
+            self.X_small = self.images[:n_samples]
+
         return self.X_small
 
 
-    # returns loaded labels, loading them from disk if necessary
+    # returns loaded labels
     def _get_labels(self) -> np.ndarray:
         if self.labels is None:
             self.labels = self._load_mnist_labels(self.labels_path)
@@ -66,14 +71,17 @@ class S21MnistOperations:
     def load_dataset(self) -> Tuple[np.ndarray, np.ndarray]:
         self.images = self._load_mnist_images(self.images_path)
         self.labels = self._load_mnist_labels(self.labels_path)
+        self.X_small = self._get_x_small()
 
         return self.images, self.labels 
 
 
     # PCA
     def transform_pca(self) -> np.ndarray:
+        X_small = self.X_small
+
         pca = PCA(n_components=2, random_state=42)
-        self.X_pca_2d = pca.fit_transform(self._get_images())
+        self.X_pca_2d = pca.fit_transform(X_small)
         # keep the trained model so it can be saved later
         self.pca_model = pca
 
@@ -92,27 +100,32 @@ class S21MnistOperations:
 
     # SVD    
     def transform_svd(self) -> np.ndarray:
+        X_small = self.X_small
+
         svd = TruncatedSVD(n_components=2, random_state=42)
-        self.X_svd_2d = svd.fit_transform(self._get_images())
+        self.X_svd_2d = svd.fit_transform(X_small)
 
         return self.X_svd_2d
 
 
     # randomized-SVD
     def transform_random_svd(self) -> np.ndarray:
+        X_small = self.X_small
+
         r_svd = TruncatedSVD(
             n_components=2,
             n_iter=5,
             random_state=42
         )
-        self.X_rand_svd_2d = r_svd.fit_transform(self._get_images())
+        self.X_rand_svd_2d = r_svd.fit_transform(X_small)
         
         return self.X_rand_svd_2d
 
 
     # TSNE
     def transform_tsne(self) -> np.ndarray:
-        X_small = self._get_x_small()
+        X_small = self.X_small
+
         tsne = TSNE(
             n_components=2,
             perplexity=30,
@@ -127,16 +140,19 @@ class S21MnistOperations:
     
     # UMAP
     def transform_umap(self) -> np.ndarray:
+        X_small = self.X_small
+
         reducer = umap.UMAP(
             n_components=2
         )
-        self.X_umap_2d = reducer.fit_transform(self._get_images())
+        self.X_umap_2d = reducer.fit_transform(X_small)
         
         return self.X_umap_2d
 
+
     # LLE
     def transform_lle(self) -> np.ndarray:
-        X_small = self._get_x_small()
+        X_small = self.X_small
 
         lle = LocallyLinearEmbedding(
             n_neighbors=10,
@@ -150,21 +166,19 @@ class S21MnistOperations:
 
     
     # evaluates how well different 2D embeddings separate digit classes
-    def evaluate_2d(self, n_samples: int = 5000) -> None:
-        images = self._get_images()
-        labels = self._get_labels()
-
-        X_small = images[:n_samples]
-        y_small = labels[:n_samples]
+    def evaluate_2d(self) -> None:
+        X_small = self.X_small
+        labels = self.labels
+        y_small = labels[:len(X_small)]
 
         # compute 2D embeddings, keeping a consistent subset size
         embeddings = {
-            "pca": self.transform_pca()[:n_samples],
-            "svd": self.transform_svd()[:n_samples],
-            "rand_svd": self.transform_random_svd()[:n_samples],
-            "tsne": self.transform_tsne()[:n_samples],   
-            "umap": self.transform_umap()[:n_samples],
-            "lle": self.transform_lle()[:n_samples],   
+            "pca": self.transform_pca(),
+            "svd": self.transform_svd(),
+            "rand_svd": self.transform_random_svd(),
+            "tsne": self.transform_tsne(),   
+            "umap": self.transform_umap(),
+            "lle": self.transform_lle(),   
         }
 
         metrics: dict[str, dict[str, float]] = {}
